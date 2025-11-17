@@ -1,0 +1,105 @@
+// Prisma schema for Retailer Sales Representative App
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+
+model Region {
+  id        Int        @id @default(autoincrement())
+  name      String     @unique
+  areas     Area[]
+  retailers Retailer[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model Area {
+  id          Int         @id @default(autoincrement())
+  name        String
+  regionId    Int
+  region      Region      @relation(fields: [regionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  territories Territory[]
+  retailers   Retailer[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@unique([name, regionId])
+}
+
+model Distributor {
+  id        Int        @id @default(autoincrement())
+  name      String     @unique
+  retailers Retailer[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model Territory {
+  id        Int        @id @default(autoincrement())
+  name      String
+  areaId    Int
+  area      Area       @relation(fields: [areaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  retailers Retailer[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@unique([name, areaId])
+}
+
+model Retailer {
+  id            Int                @id @default(autoincrement())
+  name          String
+  phone         String?
+  regionId      Int
+  region        Region             @relation(fields: [regionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  areaId        Int
+  area          Area               @relation(fields: [areaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  distributorId Int
+  distributor   Distributor        @relation(fields: [distributorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  territoryId   Int?
+  territory     Territory?         @relation(fields: [territoryId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  points        Int                @default(0)
+  routes        String             @default("")
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  assignments   SalesRepRetailer[]
+
+}
+
+model Admin {
+  id        Int      @id @default(autoincrement())
+  name      String
+  username  String   @unique
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SalesRep {
+  id           Int                @id @default(autoincrement())
+  name         String
+  email        String     @unique
+  username     String     @unique
+  phone        String?    @unique
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  assignments  SalesRepRetailer[]
+}
+
+model SalesRepRetailer {
+  salesRepId Int
+  retailerId Int
+  assignedAt DateTime @default(now())
+
+  salesRep SalesRep @relation(fields: [salesRepId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  retailer Retailer @relation(fields: [retailerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@id([salesRepId, retailerId])
+
+}
