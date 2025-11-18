@@ -8,6 +8,24 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum Role {
+  Admin
+  SalesRep
+}
+
+model User {
+  id           Int        @id @default(autoincrement())
+  email        String     @unique
+  username     String     @unique
+  phone        String?    @unique
+  password     String
+  role         Role
+  // Added CreatedBy and UpdatedBy fields would be useful for auditing, but ignoring for now for simplicity
+
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  salesRep     SalesRep?
+}
 
 model Region {
   id        Int        @id @default(autoincrement())
@@ -22,7 +40,7 @@ model Area {
   id          Int         @id @default(autoincrement())
   name        String
   regionId    Int
-  region      Region      @relation(fields: [regionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  region      Region      @relation(fields: [regionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   territories Territory[]
   retailers   Retailer[]
   createdAt   DateTime    @default(now())
@@ -43,7 +61,7 @@ model Territory {
   id        Int        @id @default(autoincrement())
   name      String
   areaId    Int
-  area      Area       @relation(fields: [areaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  area      Area       @relation(fields: [areaId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   retailers Retailer[]
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
@@ -56,40 +74,38 @@ model Retailer {
   name          String
   phone         String?
   regionId      Int
-  region        Region             @relation(fields: [regionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  region        Region             @relation(fields: [regionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   areaId        Int
-  area          Area               @relation(fields: [areaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  area          Area               @relation(fields: [areaId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   distributorId Int
-  distributor   Distributor        @relation(fields: [distributorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  distributor   Distributor        @relation(fields: [distributorId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   territoryId   Int?
-  territory     Territory?         @relation(fields: [territoryId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  territory     Territory?         @relation(fields: [territoryId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   points        Int                @default(0)
   routes        String             @default("")
+  notes         String             @default("")
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
   assignments   SalesRepRetailer[]
 
-}
-
-model Admin {
-  id        Int      @id @default(autoincrement())
-  name      String
-  username  String   @unique
-  email     String   @unique
-  password  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  @@index([regionId])
+  @@index([areaId])
+  @@index([distributorId])
+  @@index([territoryId])
+  
+  // Added indexes for the 'Search' feature (name, phone)
+  @@index([name])
+  @@index([phone])
 }
 
 model SalesRep {
   id           Int                @id @default(autoincrement())
   name         String
-  email        String     @unique
-  username     String     @unique
-  phone        String?    @unique
   createdAt    DateTime           @default(now())
   updatedAt    DateTime           @updatedAt
   assignments  SalesRepRetailer[]
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userId       Int                @unique
 }
 
 model SalesRepRetailer {
@@ -102,4 +118,6 @@ model SalesRepRetailer {
 
   @@id([salesRepId, retailerId])
 
+  @@index([retailerId])
+  @@index([salesRepId])
 }

@@ -1,6 +1,7 @@
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from './prisma/prisma.service';
+import { Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -30,7 +31,7 @@ export class AppService implements OnModuleInit {
         return;
       }
 
-      const existingAdmin = await this.prisma.admin.findUnique({
+      const existingAdmin = await this.prisma.user.findUnique({
         where: { email: adminEmail },
       });
 
@@ -41,12 +42,13 @@ export class AppService implements OnModuleInit {
 
       const hashedPassword = await bcrypt.hash(adminPassword, 10);
 
-      await this.prisma.admin.create({
+      await this.prisma.user.create({
         data: {
           username: 'admin',
-          name: 'Super Admin',
+          phone: '0000000000',
           email: adminEmail,
           password: hashedPassword,
+          role: Role.Admin,
         },
       });
 
