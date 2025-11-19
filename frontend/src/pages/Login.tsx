@@ -16,7 +16,12 @@ export default function Login() {
     setError('');
     try {
       await login(email, password);
-      navigate('/admin');
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      if (user.role === 'Admin') {
+        navigate('/admin');
+      } else {
+        navigate('/retailers');
+      }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Invalid credentials');
     } finally {

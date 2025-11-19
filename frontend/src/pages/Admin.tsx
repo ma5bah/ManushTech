@@ -1,14 +1,17 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { adminService, type Region, type Area, type Distributor, type Territory } from '@/services/admin';
+import { SalesRepsTab } from './AdminSalesReps';
 
 export default function Admin() {
   const { logout } = useAuth();
+  const navigate = useNavigate();
   const [regions, setRegions] = useState<Region[]>([]);
   const [areas, setAreas] = useState<Area[]>([]);
   const [distributors, setDistributors] = useState<Distributor[]>([]);
   const [territories, setTerritories] = useState<Territory[]>([]);
-  const [activeTab, setActiveTab] = useState<'regions' | 'areas' | 'distributors' | 'territories'>('regions');
+  const [activeTab, setActiveTab] = useState<'regions' | 'areas' | 'distributors' | 'territories' | 'salesReps'>('regions');
 
   useEffect(() => {
     loadAll();
@@ -35,9 +38,17 @@ export default function Admin() {
     <div className="container mx-auto p-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Admin Dashboard</h1>
-        <button onClick={logout} className="px-4 py-2 border rounded hover:bg-gray-100">
-          Logout
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => navigate('/retailers')}
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            View Retailers
+          </button>
+          <button onClick={logout} className="px-4 py-2 border rounded hover:bg-gray-100">
+            Logout
+          </button>
+        </div>
       </div>
 
       <div className="border-b mb-4">
@@ -66,6 +77,12 @@ export default function Admin() {
           >
             Territories
           </button>
+          <button
+            onClick={() => setActiveTab('salesReps')}
+            className={`pb-2 px-4 ${activeTab === 'salesReps' ? 'border-b-2 border-blue-600' : ''}`}
+          >
+            Sales Reps
+          </button>
         </div>
       </div>
 
@@ -80,6 +97,9 @@ export default function Admin() {
       )}
       {activeTab === 'territories' && (
         <TerritoriesTab territories={territories} areas={areas} onRefresh={loadAll} />
+      )}
+      {activeTab === 'salesReps' && (
+        <SalesRepsTab />
       )}
     </div>
   );

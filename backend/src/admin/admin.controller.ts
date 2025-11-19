@@ -8,16 +8,23 @@ import {
   Param,
   ParseIntPipe,
   UseGuards,
+  Query,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { Role } from '@prisma/client';
 import { AdminService } from './admin.service';
 import { CreateRegionDto, CreateAreaDto, CreateDistributorDto, CreateTerritoryDto } from './dto/taxonomy.dto';
+import { CreateRetailerDto } from './dto/create-retailer.dto';
+import { UpdateRetailerAdminDto } from './dto/update-retailer-admin.dto';
 
 @ApiTags('admin')
 @ApiBearerAuth()
 @Controller('admin')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(Role.Admin)
 export class AdminController {
   constructor(private adminService: AdminService) {}
 
@@ -115,6 +122,46 @@ export class AdminController {
   @ApiOperation({ summary: 'Delete territory' })
   deleteTerritory(@Param('id', ParseIntPipe) id: number) {
     return this.adminService.deleteTerritory(id);
+  }
+
+  // Retailers CRUD
+  @Get('retailers')
+  @ApiOperation({ summary: 'Get all retailers (paginated)' })
+  async getRetailers(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.adminService.getRetailers(
+      page ? parseInt(page) : 1,
+      limit ? parseInt(limit) : 20,
+      search,
+    );
+  }
+
+  @Get('retailers/:id')
+  @ApiOperation({ summary: 'Get retailer by ID' })
+  async getRetailer(@Param('id', ParseIntPipe) id: number) {
+    return this.adminService.getRetailer(id);
+  }
+
+  @Post('retailers')
+  @ApiOperation({ summary: 'Create retailer' })
+  async createRetailer(@Body() dto: CreateRetailerDto) {
+    return this.adminService.createRetailer(dto);
+  }
+
+  @Patch('retailers/:id')
+  @ApiOperation({ summary: 'Update retailer' })
+  async updateRetailer(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateRetailerAdminDto) {
+    return this.adminService.updateRetailer(id, dto);
+  }
+
+  @Delete('retailers/:id')
+  @ApiOperation({ summary: 'Delete retailer' })
+  async deleteRetailer(@Param('id', ParseIntPipe) id: number) {
+    await this.adminService.deleteRetailer(id);
+    return { success: true };
   }
 }
 

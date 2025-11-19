@@ -6,6 +6,8 @@ export interface LoginResponse {
     id: number;
     email: string;
     username: string;
+    role: string;
+    isPredefinedAdmin?: boolean;
   };
 }
 

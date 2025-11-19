@@ -86,5 +86,67 @@ export const adminService = {
   deleteTerritory: async (id: number): Promise<void> => {
     await api.delete(`/admin/territories/${id}`);
   },
+
+  // Retailers CRUD
+  getRetailers: async (page = 1, limit = 20, search?: string): Promise<RetailerListResponse> => {
+    const response = await api.get('/admin/retailers', {
+      params: { page, limit, search },
+    });
+    return response.data;
+  },
+
+  getRetailer: async (id: number): Promise<Retailer> => {
+    const response = await api.get(`/admin/retailers/${id}`);
+    return response.data;
+  },
+
+  createRetailer: async (data: CreateRetailerData): Promise<Retailer> => {
+    const response = await api.post('/admin/retailers', data);
+    return response.data;
+  },
+
+  updateRetailer: async (id: number, data: Partial<CreateRetailerData>): Promise<Retailer> => {
+    const response = await api.patch(`/admin/retailers/${id}`, data);
+    return response.data;
+  },
+
+  deleteRetailer: async (id: number): Promise<void> => {
+    await api.delete(`/admin/retailers/${id}`);
+  },
 };
+
+export interface Retailer {
+  id: number;
+  name: string;
+  phone: string | null;
+  region: { id: number; name: string };
+  area: { id: number; name: string };
+  distributor: { id: number; name: string };
+  territory: { id: number; name: string } | null;
+  points: number;
+  routes: string;
+  notes: string;
+}
+
+export interface RetailerListResponse {
+  data: Retailer[];
+  meta: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
+}
+
+export interface CreateRetailerData {
+  name: string;
+  phone?: string;
+  regionId: number;
+  areaId: number;
+  distributorId: number;
+  territoryId?: number;
+  points?: number;
+  routes?: string;
+  notes?: string;
+}
 
