@@ -8,17 +8,28 @@ import {
   Param,
   ParseIntPipe,
   UseGuards,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
   Query,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '@prisma/client';
 import { AdminService } from './admin.service';
 import { CreateRegionDto, CreateAreaDto, CreateDistributorDto, CreateTerritoryDto } from './dto/taxonomy.dto';
+import { BulkAssignDto } from './dto/bulk-assign.dto';
 import { CreateRetailerDto } from './dto/create-retailer.dto';
 import { UpdateRetailerAdminDto } from './dto/update-retailer-admin.dto';
+import {
+  RegionQueryDto,
+  AreaQueryDto,
+  DistributorQueryDto,
+  TerritoryQueryDto,
+} from 'src/retailers/dto/retailer-query.dto';
 
 @ApiTags('admin')
 @ApiBearerAuth()
@@ -30,8 +41,8 @@ export class AdminController {
 
   @Get('regions')
   @ApiOperation({ summary: 'Get all regions' })
-  getRegions() {
-    return this.adminService.getRegions();
+  getRegions(@Query() query: RegionQueryDto) {
+    return this.adminService.getRegions(query);
   }
 
   @Post('regions')
@@ -54,8 +65,8 @@ export class AdminController {
 
   @Get('areas')
   @ApiOperation({ summary: 'Get all areas' })
-  getAreas() {
-    return this.adminService.getAreas();
+  getAreas(@Query() query: AreaQueryDto) {
+    return this.adminService.getAreas(query);
   }
 
   @Post('areas')
@@ -78,8 +89,8 @@ export class AdminController {
 
   @Get('distributors')
   @ApiOperation({ summary: 'Get all distributors' })
-  getDistributors() {
-    return this.adminService.getDistributors();
+  getDistributors(@Query() query: DistributorQueryDto) {
+    return this.adminService.getDistributors(query);
   }
 
   @Post('distributors')
@@ -102,8 +113,8 @@ export class AdminController {
 
   @Get('territories')
   @ApiOperation({ summary: 'Get all territories' })
-  getTerritories() {
-    return this.adminService.getTerritories();
+  getTerritories(@Query() query: TerritoryQueryDto) {
+    return this.adminService.getTerritories(query);
   }
 
   @Post('territories')
@@ -124,6 +135,23 @@ export class AdminController {
     return this.adminService.deleteTerritory(id);
   }
 
+  @Get('sales-reps')
+  @ApiOperation({ summary: 'Get all sales reps' })
+  getSalesReps(@Query('page') page?: string, @Query('limit') limit?: string, @Query('search') search?: string) {
+    return this.adminService.getSalesReps(
+      page ? parseInt(page) : 1,
+      limit ? parseInt(limit) : 20,
+      search
+    );
+  }
+
+  // Bulk assignments
+  @Post('assignments/bulk')
+  @ApiOperation({ summary: 'Bulk assign/unassign retailers to SR' })
+  bulkAssign(@Body() dto: BulkAssignDto) {
+    return this.adminService.bulkAssign(dto);
+  }
+
   // Retailers CRUD
   @Get('retailers')
   @ApiOperation({ summary: 'Get all retailers (paginated)' })
@@ -132,11 +160,11 @@ export class AdminController {
     @Query('limit') limit?: string,
     @Query('search') search?: string,
   ) {
-    return this.adminService.getRetailers(
-      page ? parseInt(page) : 1,
-      limit ? parseInt(limit) : 20,
+    return this.adminService.getRetailers({
+      page: page ? parseInt(page) : 1,
+      limit: limit ? parseInt(limit) : 20,
       search,
-    );
+    });
   }
 
   @Get('retailers/:id')
@@ -162,6 +190,27 @@ export class AdminController {
   async deleteRetailer(@Param('id', ParseIntPipe) id: number) {
     await this.adminService.deleteRetailer(id);
     return { success: true };
+  }
+
+  // CSV import
+  @Post('retailers/import')
+  @ApiOperation({ summary: 'Import retailers from CSV' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { file: { type: 'string', format: 'binary' } },
+    },
+  })
+  @UseInterceptors(FileInterceptor('file'))
+  async importRetailers(@UploadedFile() file: Express.Multer.File) {
+    if (!file) {
+      throw new BadRequestException('File is required');
+    }
+    if (file.mimetype !== 'text/csv') {
+      throw new BadRequestException('Only CSV files are allowed');
+    }
+    return this.adminService.importRetailers(file.buffer);
   }
 }
 

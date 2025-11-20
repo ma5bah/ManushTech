@@ -22,10 +22,17 @@ export interface Territory {
   areaId: number;
 }
 
+export interface SalesRep {
+  id: number;
+  username: string;
+  email: string;
+  phone: string | null;
+}
+
 export const adminService = {
   getRegions: async (): Promise<Region[]> => {
     const response = await api.get('/admin/regions');
-    return response.data;
+    return response.data.data;
   },
   createRegion: async (name: string): Promise<Region> => {
     const response = await api.post('/admin/regions', { name });
@@ -41,7 +48,7 @@ export const adminService = {
 
   getAreas: async (): Promise<Area[]> => {
     const response = await api.get('/admin/areas');
-    return response.data;
+    return response.data.data;
   },
   createArea: async (name: string, regionId: number): Promise<Area> => {
     const response = await api.post('/admin/areas', { name, regionId });
@@ -57,7 +64,7 @@ export const adminService = {
 
   getDistributors: async (): Promise<Distributor[]> => {
     const response = await api.get('/admin/distributors');
-    return response.data;
+    return response.data.data;
   },
   createDistributor: async (name: string): Promise<Distributor> => {
     const response = await api.post('/admin/distributors', { name });
@@ -73,7 +80,7 @@ export const adminService = {
 
   getTerritories: async (): Promise<Territory[]> => {
     const response = await api.get('/admin/territories');
-    return response.data;
+    return response.data.data;
   },
   createTerritory: async (name: string, areaId: number): Promise<Territory> => {
     const response = await api.post('/admin/territories', { name, areaId });
@@ -95,6 +102,20 @@ export const adminService = {
     return response.data;
   },
 
+  // Used for bulk assignment (fetches larger list)
+  getRetailersForAssignment: async (): Promise<Retailer[]> => {
+    // Fetch a larger batch for assignment UI
+    const response = await api.get('/admin/retailers', {
+      params: { page: 1, limit: 1000 }, 
+    });
+    return response.data.data;
+  },
+
+  getSalesReps: async (): Promise<SalesRep[]> => {
+    const response = await api.get('/admin/sales-reps');
+    return response.data.data;
+  },
+
   getRetailer: async (id: number): Promise<Retailer> => {
     const response = await api.get(`/admin/retailers/${id}`);
     return response.data;
@@ -113,7 +134,28 @@ export const adminService = {
   deleteRetailer: async (id: number): Promise<void> => {
     await api.delete(`/admin/retailers/${id}`);
   },
+
+  // Bulk assign
+  bulkAssignRetailers: async (data: BulkAssignData): Promise<void> => {
+    await api.post('/admin/assignments/bulk', data);
+  },
+
+  // Import
+  importRetailers: async (file: File): Promise<{ imported: number; skipped: number }> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await api.post('/admin/retailers/import', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
 };
+
+export interface BulkAssignData {
+  salesRepId: number | null; // null for unassign
+  retailerIds: number[];
+  action?: 'assign' | 'unassign'; // Optional because logic might infer it
+}
 
 export interface Retailer {
   id: number;
@@ -126,6 +168,8 @@ export interface Retailer {
   points: number;
   routes: string;
   notes: string;
+  salesRepId?: number; // For assignment UI
+  assignments?: { salesRep: { id: number; name: string } }[];
 }
 
 export interface RetailerListResponse {
@@ -149,4 +193,3 @@ export interface CreateRetailerData {
   routes?: string;
   notes?: string;
 }
-

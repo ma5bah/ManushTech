@@ -17,21 +17,21 @@ export class RetailersController {
   constructor(private retailersService: RetailersService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Get paginated list of all retailers' })
+  @ApiOperation({ summary: 'Get paginated list of assigned retailers' })
   async findAll(@Req() req: any, @Query() query: RetailerQueryDto) {
-    return this.retailersService.findAllAssigned(req.user.id, query);
+    return this.retailersService.findAllAssigned(req.user.sub, query);
   }
 
-  @Get(':id')
-  @ApiOperation({ summary: 'Get retailer details by ID' })
-  async findOne(@Req() req: any, @Param('id') id: string) {
-    return this.retailersService.findOne(req.user.id, id);
+  @Get(':uid')
+  @ApiOperation({ summary: 'Get retailer details by UID' })
+  async findOne(@Req() req: any, @Param('uid') uid: string) {
+    return this.retailersService.findOne(req.user.sub, uid);
   }
 
-  @Patch(':id')
+  @Patch(':uid')
   @ApiOperation({ summary: 'Update allowed retailer fields' })
-  async update(@Req() req: any, @Param('id') id: string, @Body() updateDto: UpdateRetailerDto) {
-    return this.retailersService.update(req.user.id, id, updateDto);
+  async update(@Req() req: any, @Param('uid') uid: string, @Body() updateDto: UpdateRetailerDto) {
+    return this.retailersService.update(req.user.sub, uid, updateDto);
   }
 }
 

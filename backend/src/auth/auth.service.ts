@@ -18,6 +18,7 @@ export class AuthService {
       email: loginDto.email,
     });
 
+    console.log('user found:', user);
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
     }

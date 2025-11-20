@@ -1,12 +1,7 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 
-interface ProtectedRouteProps {
-  children: React.ReactNode;
-  requiredRole?: 'Admin' | 'SalesRep';
-}
-
-export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
+export function ProtectedRoute({ children, requiredRole }: { children: React.ReactNode; requiredRole?: string }) {
   const { isAuthenticated, user } = useAuth();
 
   if (!isAuthenticated) {
@@ -14,7 +9,7 @@ export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) 
   }
 
   if (requiredRole && user?.role !== requiredRole) {
-    return <Navigate to={user?.role === 'Admin' ? '/admin' : '/retailers'} replace />;
+    return <Navigate to="/retailers" replace />;
   }
 
   return <>{children}</>;

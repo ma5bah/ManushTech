@@ -1,32 +1,36 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { RedisService } from '../redis/redis.service';
 import { RetailerQueryDto } from './dto/retailer-query.dto';
 import { UpdateRetailerDto } from './dto/update-retailer.dto';
 
 @Injectable()
 export class RetailersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private redis: RedisService,
+  ) {}
 
   async findAllAssigned(userId: number, query: RetailerQueryDto) {
     const { page = 1, limit = 20, search, regionId, areaId, distributorId, territoryId } = query;
     const skip = (page - 1) * limit;
 
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: { salesRep: true },
-    });
-
-    if (!user) {
-      throw new ForbiddenException('User not found');
+    const cacheKey = `retailers:sr:${userId}:${JSON.stringify(query)}`;
+    const cached = await this.redis.get(cacheKey);
+    if (cached) {
+      return JSON.parse(cached);
     }
 
-    const where: any = {};
-
-    // Both SalesRep and Admin can see all retailers (no assignment filter)
+    const where: any = {
+      assignments: {
+        some: { salesRepId: userId },
+      },
+    };
 
     if (search) {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
+        { uid: { contains: search, mode: 'insensitive' } },
         { phone: { contains: search, mode: 'insensitive' } },
       ];
     }
@@ -52,7 +56,7 @@ export class RetailersService {
       this.prisma.retailer.count({ where }),
     ]);
 
-    return {
+    const result = {
       data: retailers,
       meta: {
         total,
@@ -61,18 +65,12 @@ export class RetailersService {
         totalPages: Math.ceil(total / limit),
       },
     };
+
+    await this.redis.set(cacheKey, JSON.stringify(result), 300);
+    return result;
   }
 
   async findOne(userId: number, id: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: { salesRep: true },
-    });
-
-    if (!user) {
-      throw new ForbiddenException('User not found');
-    }
-
     const retailer = await this.prisma.retailer.findUnique({
       where: { id: parseInt(id) },
       include: {
@@ -88,37 +86,36 @@ export class RetailersService {
       throw new NotFoundException('Retailer not found');
     }
 
-    // Both SalesRep and Admin can view any retailer (no assignment check)
+    const isAssigned = retailer.assignments.some((a) => a.salesRepId === userId);
+    if (!isAssigned) {
+      throw new ForbiddenException('Not authorized to view this retailer');
+    }
 
     return retailer;
   }
 
   async update(userId: number, id: string, updateDto: UpdateRetailerDto) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: { salesRep: true },
-    });
-
-    if (!user) {
-      throw new ForbiddenException('User not found');
-    }
-
     const retailer = await this.prisma.retailer.findUnique({
       where: { id: parseInt(id) },
+      include: { assignments: { select: { salesRepId: true } } },
     });
 
     if (!retailer) {
       throw new NotFoundException('Retailer not found');
     }
 
-    // Both SalesRep and Admin can update retailers
-    // SalesRep can only update Points, Routes, Notes (enforced by DTO)
-    // Admin can update any fields (handled in admin controller)
+    const isAssigned = retailer.assignments.some((a) => a.salesRepId === userId);
+    if (!isAssigned) {
+      throw new ForbiddenException('Not authorized to update this retailer');
+    }
 
-    return this.prisma.retailer.update({
+    const updated = await this.prisma.retailer.update({
       where: { id: parseInt(id) },
       data: updateDto,
     });
+
+    await this.redis.delPattern(`retailers:sr:${userId}:*`);
+    return updated;
   }
 }
 

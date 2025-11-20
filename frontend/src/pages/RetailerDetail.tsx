@@ -2,13 +2,18 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { retailersService } from '@/services/retailers';
 import type { Retailer, UpdateRetailerData } from '@/services/retailers';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function RetailerDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { logout, user } = useAuth();
-  const isAdmin = user?.role === 'Admin';
+  const { toast } = useToast();
+  const { logout } = useAuth();
   const [retailer, setRetailer] = useState<Retailer | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -35,7 +40,11 @@ export default function RetailerDetail() {
         notes: data.notes,
       });
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Failed to load retailer');
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: error.response?.data?.message || 'Failed to load retailer',
+      });
       navigate('/retailers');
     } finally {
       setLoading(false);
@@ -47,10 +56,17 @@ export default function RetailerDetail() {
     setSaving(true);
     try {
       await retailersService.update(id, formData);
-      alert('Retailer updated successfully');
+      toast({
+        title: 'Success',
+        description: 'Retailer updated successfully',
+      });
       loadRetailer();
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Failed to update retailer');
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: error.response?.data?.message || 'Failed to update retailer',
+      });
     } finally {
       setSaving(false);
     }
@@ -69,97 +85,83 @@ export default function RetailerDetail() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Retailer Details</h1>
         <div className="flex gap-2">
-          <button
-            onClick={() => navigate('/retailers')}
-            className="px-4 py-2 border rounded hover:bg-gray-100"
-          >
+          <Button variant="outline" onClick={() => navigate('/retailers')}>
             Back to List
-          </button>
-          {isAdmin && (
-            <button
-              onClick={() => navigate('/admin')}
-              className="px-4 py-2 border rounded hover:bg-gray-100"
-            >
-              Admin Dashboard
-            </button>
-          )}
-          <button onClick={logout} className="px-4 py-2 border rounded hover:bg-gray-100">
-            Logout
-          </button>
+          </Button>
+          <Button variant="outline" onClick={logout}>Logout</Button>
         </div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">Retailer Information</h2>
-          <div className="space-y-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Retailer Information</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Name</label>
+              <Label>Name</Label>
               <p className="text-sm font-medium">{retailer.name}</p>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Phone</label>
+              <Label>Phone</Label>
               <p className="text-sm font-medium">{retailer.phone || 'N/A'}</p>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Region</label>
+              <Label>Region</Label>
               <p className="text-sm font-medium">{retailer.region.name}</p>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Area</label>
+              <Label>Area</Label>
               <p className="text-sm font-medium">{retailer.area.name}</p>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Distributor</label>
+              <Label>Distributor</Label>
               <p className="text-sm font-medium">{retailer.distributor.name}</p>
             </div>
             {retailer.territory && (
               <div>
-                <label className="block text-sm font-medium mb-1">Territory</label>
+                <Label>Territory</Label>
                 <p className="text-sm font-medium">{retailer.territory.name}</p>
               </div>
             )}
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">Update Fields</h2>
-          <div className="space-y-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Update Fields</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Points</label>
-              <input
+              <Label htmlFor="points">Points</Label>
+              <Input
+                id="points"
                 type="number"
                 value={formData.points}
-                onChange={(e) => setFormData({ ...formData, points: parseInt(e.target.value) || 0 })}
-                className="w-full px-3 py-2 border rounded"
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, points: parseInt(e.target.value) || 0 })}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Routes</label>
-              <input
+              <Label htmlFor="routes">Routes</Label>
+              <Input
+                id="routes"
                 value={formData.routes}
-                onChange={(e) => setFormData({ ...formData, routes: e.target.value })}
-                className="w-full px-3 py-2 border rounded"
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, routes: e.target.value })}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Notes</label>
-              <textarea
+              <Label htmlFor="notes">Notes</Label>
+              <Input
+                id="notes"
                 value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                rows={4}
-                className="w-full px-3 py-2 border rounded"
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, notes: e.target.value })}
               />
             </div>
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-            >
+            <Button onClick={handleSave} disabled={saving} className="w-full">
               {saving ? 'Saving...' : 'Save Changes'}
-            </button>
-          </div>
-        </div>
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

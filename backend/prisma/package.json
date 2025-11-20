@@ -1,0 +1,6 @@
+{
+  "name": "seed",
+  "prisma": {
+    "seed": "ts-node seed.ts"
+  }
+}
