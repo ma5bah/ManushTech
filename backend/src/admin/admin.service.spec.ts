@@ -4,77 +4,61 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { BadRequestException } from '@nestjs/common';
 
-const mockPrismaService = {
-  $queryRaw: jest.fn(),
-  $executeRaw: jest.fn(),
-  region: {
-    create: jest.fn(),
-    update: jest.fn(),
-    delete: jest.fn(),
-    findMany: jest.fn(),
-    count: jest.fn(),
-  },
-  area: {
-    create: jest.fn(),
-    update: jest.fn(),
-    delete: jest.fn(),
-    findMany: jest.fn(),
-    count: jest.fn(),
-  },
-  distributor: {
-    create: jest.fn(),
-    update: jest.fn(),
-    delete: jest.fn(),
-    findMany: jest.fn(),
-    count: jest.fn(),
-  },
-  territory: {
-    create: jest.fn(),
-    update: jest.fn(),
-    delete: jest.fn(),
-    findMany: jest.fn(),
-    count: jest.fn(),
-  },
-  user: {
-    findMany: jest.fn(),
-    count: jest.fn(),
-  },
-  retailer: {
-    create: jest.fn(),
-    createMany: jest.fn(),
-    update: jest.fn(),
-    delete: jest.fn(),
-    findMany: jest.fn(),
-  },
-};
-
-const mockRedisService = {
-  delPattern: jest.fn(),
-};
-
 describe('AdminService', () => {
   let service: AdminService;
   let prismaService: PrismaService;
   let redisService: RedisService;
 
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        AdminService,
-        {
-          provide: PrismaService,
-          useValue: mockPrismaService,
-        },
-        {
-          provide: RedisService,
-          useValue: mockRedisService,
-        },
-      ],
-    }).compile();
+  beforeEach(() => {
+    prismaService = {
+      $queryRaw: jest.fn(),
+      $executeRaw: jest.fn(),
+      region: {
+        create: jest.fn(),
+        update: jest.fn(),
+        delete: jest.fn(),
+        findMany: jest.fn(),
+        count: jest.fn(),
+      },
+      area: {
+        create: jest.fn(),
+        update: jest.fn(),
+        delete: jest.fn(),
+        findMany: jest.fn(),
+        count: jest.fn(),
+      },
+      distributor: {
+        create: jest.fn(),
+        update: jest.fn(),
+        delete: jest.fn(),
+        findMany: jest.fn(),
+        count: jest.fn(),
+      },
+      territory: {
+        create: jest.fn(),
+        update: jest.fn(),
+        delete: jest.fn(),
+        findMany: jest.fn(),
+        count: jest.fn(),
+      },
+      user: {
+        findMany: jest.fn(),
+        count: jest.fn(),
+      },
+      retailer: {
+        create: jest.fn(),
+        createMany: jest.fn(),
+        update: jest.fn(),
+        delete: jest.fn(),
+        findMany: jest.fn(),
+      },
+    } as any;
 
-    service = module.get<AdminService>(AdminService);
-    prismaService = module.get<PrismaService>(PrismaService);
-    redisService = module.get<RedisService>(RedisService);
+    redisService = {
+      delPattern: jest.fn(),
+    } as any;
+
+    service = new AdminService(prismaService, redisService);
   });
 
   it('should be defined', () => {
@@ -136,4 +120,3 @@ describe('AdminService', () => {
     });
   });
 });
-

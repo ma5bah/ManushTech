@@ -22,24 +22,21 @@ describe('RetailersService', () => {
   let prismaService: PrismaService;
   let redisService: RedisService;
 
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        RetailersService,
-        {
-          provide: PrismaService,
-          useValue: mockPrismaService,
-        },
-        {
-          provide: RedisService,
-          useValue: mockRedisService,
-        },
-      ],
-    }).compile();
+  beforeEach(() => {
+    prismaService = {
+      salesRep: {
+        findUnique: jest.fn(),
+      },
+      $queryRaw: jest.fn(),
+    } as any;
 
-    service = module.get<RetailersService>(RetailersService);
-    prismaService = module.get<PrismaService>(PrismaService);
-    redisService = module.get<RedisService>(RedisService);
+    redisService = {
+      get: jest.fn(),
+      set: jest.fn(),
+      delPattern: jest.fn(),
+    } as any;
+
+    service = new RetailersService(prismaService, redisService);
   });
 
   it('should be defined', () => {
@@ -73,7 +70,10 @@ describe('RetailersService', () => {
       const result = await service.findAllAssigned(userId, query);
 
       expect(result).toEqual(cachedData);
-      expect(prismaService.salesRep.findUnique).toHaveBeenCalledWith({ where: { userId } });
+      expect(prismaService.salesRep.findUnique).toHaveBeenCalledWith({
+        where: { userId },
+        select: { id: true },
+      });
       expect(redisService.get).toHaveBeenCalled();
       // Should NOT call database query
       expect(prismaService.$queryRaw).not.toHaveBeenCalled();
