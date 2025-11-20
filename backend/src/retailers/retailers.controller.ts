@@ -12,26 +12,26 @@ import { UpdateRetailerDto } from './dto/update-retailer.dto';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @ApiTags('Retailers')
 @ApiBearerAuth()
-@Roles(Role.SalesRep, Role.Admin)
+@Roles(Role.SalesRep)
 export class RetailersController {
   constructor(private retailersService: RetailersService) {}
 
   @Get()
   @ApiOperation({ summary: 'Get paginated list of assigned retailers' })
   async findAll(@Req() req: any, @Query() query: RetailerQueryDto) {
-    return this.retailersService.findAllAssigned(req.user.sub, query);
+    return this.retailersService.findAllAssigned(req.user.id, query);
   }
 
   @Get(':uid')
   @ApiOperation({ summary: 'Get retailer details by UID' })
   async findOne(@Req() req: any, @Param('uid') uid: string) {
-    return this.retailersService.findOne(req.user.sub, uid);
+    return this.retailersService.findOne(req.user.id, uid);
   }
 
   @Patch(':uid')
   @ApiOperation({ summary: 'Update allowed retailer fields' })
   async update(@Req() req: any, @Param('uid') uid: string, @Body() updateDto: UpdateRetailerDto) {
-    return this.retailersService.update(req.user.sub, uid, updateDto);
+    return this.retailersService.update(req.user.id, uid, updateDto);
   }
 }
 

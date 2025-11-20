@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
-import { Prisma, User } from '@prisma/client';
+import { Prisma, User, Role } from '@prisma/client';
 
 @Injectable()
 export class UserService {
@@ -18,12 +18,25 @@ export class UserService {
   async createUser(data: Prisma.UserCreateInput): Promise<User> {
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(data.password as string, saltRounds);
-    return this.prisma.user.create({
+    
+    const user = await this.prisma.user.create({
       data: {
         ...data,
         password: hashedPassword,
       },
     });
+
+    // Automatically create SalesRep record when creating a SalesRep role user
+    if (user.role === Role.SalesRep) {
+      await this.prisma.salesRep.create({
+        data: {
+          name: user.username,
+          userId: user.id,
+        },
+      });
+    }
+
+    return user;
   }
 
   async deleteUser(where: Prisma.UserWhereUniqueInput): Promise<User> {

@@ -217,7 +217,7 @@ export class AdminService {
         where,
         skip,
         take: limit,
-        select: { id: true, username: true, email: true, phone: true },
+        select: { id: true, username: true, email: true, phone: true, salesRep: true },
         orderBy: { username: 'asc' },
       }),
       this.prisma.user.count({ where }),

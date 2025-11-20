@@ -1,0 +1,65 @@
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: retailer_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: retailer_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - retailer_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: retailer_redis
+    ports:
+      - "6379:6379"
+    networks:
+      - retailer_network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: retailer_backend
+    environment:
+      SUPERADMIN_EMAIL: superadmin@example.com
+      SUPERADMIN_PASSWORD: supersecretpassword
+      DATABASE_URL: postgres://postgres:postgres@db:5432/retailer_db
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: development_secret_key
+      JWT_EXPIRES_IN: 7d
+      PORT: 3000
+    ports:
+      - "3000:3000"
+    command: ["/bin/sh", "-c", "npx prisma migrate deploy && npx prisma db seed && node dist/main.js"]
+    depends_on:
+      - db
+      - redis
+    networks:
+      - retailer_network
+    # Wait for DB to be ready (simple check, or use wait-for-it in Dockerfile if needed)
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: retailer_frontend
+    ports:
+      - "8080:80"
+    networks:
+      - retailer_network
+
+networks:
+  retailer_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+

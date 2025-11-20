@@ -16,14 +16,27 @@ export class RetailersService {
     const { page = 1, limit = 20, search, regionId, areaId, distributorId, territoryId } = query;
     const skip = (page - 1) * limit;
 
-    const cacheKey = `retailers:sr:${userId}:${JSON.stringify(query)}`;
+    // Get SalesRep ID from User ID first
+    const salesRep = await this.prisma.salesRep.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+
+    if (!salesRep) {
+      return {
+        data: [],
+        meta: { total: 0, page, limit, totalPages: 0 },
+      };
+    }
+
+    const cacheKey = `retailers:sr:${salesRep.id}:${JSON.stringify(query)}`;
     const cached = await this.redis.get(cacheKey);
     if (cached) {
       return JSON.parse(cached);
     }
 
     // Build dynamic WHERE conditions using Prisma.sql
-    const conditions: Prisma.Sql[] = [Prisma.sql`R."salesRepId" = ${userId}`];
+    const conditions: Prisma.Sql[] = [Prisma.sql`R."salesRepId" = ${salesRep.id}`];
     
     if (search) {
       const searchPattern = `%${search}%`;
@@ -119,6 +132,16 @@ export class RetailersService {
   async findOne(userId: number, id: string) {
     const retailerId = parseInt(id);
     
+    // Get SalesRep ID from User ID
+    const salesRep = await this.prisma.salesRep.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+
+    if (!salesRep) {
+      throw new NotFoundException('Sales representative not found');
+    }
+    
     const result: any[] = await this.prisma.$queryRaw`
       SELECT 
         R.id,
@@ -152,7 +175,7 @@ export class RetailersService {
 
     const r = result[0];
 
-    if (r.salesRepId !== userId) {
+    if (r.salesRepId !== salesRep.id) {
       throw new ForbiddenException('Not authorized to view this retailer');
     }
 
@@ -180,6 +203,16 @@ export class RetailersService {
   async update(userId: number, id: string, updateDto: UpdateRetailerDto) {
     const retailerId = parseInt(id);
     
+    // Get SalesRep ID from User ID
+    const salesRep = await this.prisma.salesRep.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+
+    if (!salesRep) {
+      throw new NotFoundException('Sales representative not found');
+    }
+    
     // Check authorization first - simple query
     const retailer: any = await this.prisma.retailer.findUnique({
       where: { id: retailerId },
@@ -190,7 +223,7 @@ export class RetailersService {
       throw new NotFoundException('Retailer not found');
     }
 
-    if (retailer.salesRepId !== userId) {
+    if (retailer.salesRepId !== salesRep.id) {
       throw new ForbiddenException('Not authorized to update this retailer');
     }
 
@@ -200,7 +233,7 @@ export class RetailersService {
       data: updateDto,
     });
 
-    await this.redis.delPattern(`retailers:sr:${userId}:*`);
+    await this.redis.delPattern(`retailers:sr:${salesRep.id}:*`);
     
     return this.findOne(userId, id);
   }

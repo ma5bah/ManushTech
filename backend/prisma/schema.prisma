@@ -1,6 +1,7 @@
 // Prisma schema for Retailer Sales Representative App
 generator client {
   provider = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
@@ -110,5 +111,3 @@ model SalesRep {
   user         User               @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   userId       Int                @unique
 }
-
-

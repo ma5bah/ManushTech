@@ -1,85 +1,73 @@
-Retailer Sales Representative App
+# Retailer Sales Representative App
 
-Goal: Build the backend for an app that helps Sales Representatives (SRs) sell products to retailers across Bangladesh. Each SR is assigned to a small list of ~70 retailers from a nationwide pool of ~1 million. The backend should focus on data modeling, performance, and scalability.
+This project is a full-stack application designed for Sales Representatives to manage retailer visits and orders. It includes a NestJS backend and a React (Vite) frontend.
 
+## Tech Stack
 
+- **Backend:** NestJS, Prisma (ORM), PostgreSQL, Redis (Caching)
+- **Frontend:** React, Vite, Tailwind CSS
+- **Infrastructure:** Docker, Docker Compose
 
-Core Features
+## Prerequisites
 
-Auth (JWT) for Admin and Sales Reps.
+- [Docker](https://www.docker.com/) installed on your machine.
+- [Docker Compose](https://docs.docker.com/compose/) (usually included with Docker Desktop).
 
-Retailer Listing (SR): View only assigned retailers (fast & paginated).
+## Setup and Startup
 
-Retailer Details: View retailer info (Name, UID, Phone, Region, Area, Distributor, Territory, Points, Routes).
+The entire application stack (Database, Redis, Backend, Frontend) can be launched using Docker Compose.
 
-Search & Filter: Search by name/code/phone; filter by region/area/distributor/territory.
+1.  **Clone the repository:**
+    ```bash
+    git clone <repository_url>
+    cd <repository_directory>
+    ```
 
-Update: SR can update allowed fields (Points, Routes, Notes).
+2.  **Start the application:**
+    Run the following command in the root directory:
+    ```bash
+    docker-compose up --build
+    ```
+    *   The `--build` flag ensures that the Docker images are built from the latest source code.
+    *   Add `-d` to run in detached mode (background): `docker-compose up --build -d`.
 
-Admin:CRUD for Region, Area, Distributor, Territory.
+3.  **Access the application:**
+    *   **Frontend:** Open [http://localhost:8080](http://localhost:8080) in your browser.
+    *   **Backend API:** Accessible at [http://localhost:3000](http://localhost:3000).
+    *   **Swagger Documentation:** [http://localhost:3000/api](http://localhost:3000/api) (if enabled) or check API routes.
 
-Bulk import retailers (CSV).
+## Database Seeding & Migrations
 
-Assign/unassign retailers to SRs (bulk).
+The Docker setup automatically runs migrations. If you need to reset or seed the database manually:
 
+1.  **Access the backend container:**
+    ```bash
+    docker exec -it retailer_backend sh
+    ```
 
+2.  **Run migrations and seed:**
+    ```bash
+    npx prisma migrate deploy
+    npx prisma db seed
+    ```
 
-Data Model (Key Tables)
+## Development Info
 
-regions(id, name)
+- **Default Credentials:** (If seeded)
+    - **Admin:** `admin` / `admin` (Check `seed.ts` for details)
+- **Ports:**
+    - Frontend: 8080
+    - Backend: 3000
+    - PostgreSQL: 5432
+    - Redis: 6379
 
-areas(id, name, region_id)
+## Stopping the App
 
-distributors(id, name)
-
-territories(id, name, area_id)
-
-retailers(id, uid, name, phone, region_id, area_id, distributor_id, territory_id, points, routes, updated_at)
-
-sales_reps(id, username, name, phone, password_hash)
-
-sales_rep_retailers(sales_rep_id, retailer_id, assigned_at)
-
-Each SR → ~70 retailers.
-
-Use proper indexes on retailer lookups and mapping tables.
-
-Technical Requirements
-
-Stack: Node.js/Nest.js.
-
-DB: PostgreSQL (with ORM of your choice - we prefer Prisma).
-
-Use Redis for caching.
-
-Include migrations, seed scripts, and Dockerfile/docker-compose.
-
-Provide unit tests (min 5).
-
-Add Swagger/OpenAPI or Postman documentation.
-
-Ensure secure and efficient queries (no N+1).
-
-
-
-Example APIs :
-
-MethodEndpointDescriptionPOST/auth/loginLogin & receive JWTGET/retailersPaginated assigned retailersGET/retailers/{uid}Retailer detailPATCH/retailers/{uid}Update allowed fieldsPOST/admin/assignments/bulkAssign retailers to SRPOST/admin/retailers/importBulk import CSVFeel free to add APIs as needed.
-
-
-
-Deliverables
-
-GitHub repo with:Source code + migrations + seeds
-
-README (setup, usage, API list)
-
-Postman/Swagger
-
-Tests
-
-Dockerfile & docker-compose
-
-Short note (1–2 paragraphs) on scaling approach for your backend
-
-
+To stop the containers:
+```bash
+docker-compose down
+```
+To stop and remove volumes (reset database):
+```bash
+docker-compose down -v
+```
