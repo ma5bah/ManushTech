@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { RetailerQueryDto } from './dto/retailer-query.dto';
 import { UpdateRetailerDto } from './dto/update-retailer.dto';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class RetailersService {
@@ -21,43 +22,88 @@ export class RetailersService {
       return JSON.parse(cached);
     }
 
-    const where: any = {
-      assignments: {
-        some: { salesRepId: userId },
-      },
-    };
-
+    // Build dynamic WHERE conditions using Prisma.sql
+    const conditions: Prisma.Sql[] = [Prisma.sql`R."salesRepId" = ${userId}`];
+    
     if (search) {
-      where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { uid: { contains: search, mode: 'insensitive' } },
-        { phone: { contains: search, mode: 'insensitive' } },
-      ];
+      const searchPattern = `%${search}%`;
+      conditions.push(Prisma.sql`(R.name ILIKE ${searchPattern} OR R.phone ILIKE ${searchPattern})`);
+    }
+    if (regionId) {
+      conditions.push(Prisma.sql`R."regionId" = ${parseInt(regionId)}`);
+    }
+    if (areaId) {
+      conditions.push(Prisma.sql`R."areaId" = ${parseInt(areaId)}`);
+    }
+    if (distributorId) {
+      conditions.push(Prisma.sql`R."distributorId" = ${parseInt(distributorId)}`);
+    }
+    if (territoryId) {
+      conditions.push(Prisma.sql`R."territoryId" = ${parseInt(territoryId)}`);
     }
 
-    if (regionId) where.regionId = parseInt(regionId);
-    if (areaId) where.areaId = parseInt(areaId);
-    if (distributorId) where.distributorId = parseInt(distributorId);
-    if (territoryId) where.territoryId = parseInt(territoryId);
+    const whereClause = Prisma.join(conditions, ' AND ');
 
-    const [retailers, total] = await Promise.all([
-      this.prisma.retailer.findMany({
-        where,
-        skip,
-        take: limit,
-        include: {
-          region: { select: { name: true } },
-          area: { select: { name: true } },
-          distributor: { select: { name: true } },
-          territory: { select: { name: true } },
-        },
-        orderBy: { name: 'asc' },
-      }),
-      this.prisma.retailer.count({ where }),
-    ]);
+    const retailers: any[] = await this.prisma.$queryRaw`
+      SELECT 
+        R.id,
+        R.name,
+        R.phone,
+        R."regionId",
+        R."areaId", 
+        R."distributorId",
+        R."territoryId",
+        R."salesRepId",
+        R.points,
+        R.routes,
+        R.notes,
+        R."createdAt",
+        R."updatedAt",
+        Reg.name as "regionName",
+        A.name as "areaName",
+        D.name as "distributorName",
+        T.name as "territoryName"
+      FROM "Retailer" R
+      LEFT JOIN "Region" Reg ON R."regionId" = Reg.id
+      LEFT JOIN "Area" A ON R."areaId" = A.id
+      LEFT JOIN "Distributor" D ON R."distributorId" = D.id
+      LEFT JOIN "Territory" T ON R."territoryId" = T.id
+      WHERE ${whereClause}
+      ORDER BY R.name ASC
+      LIMIT ${limit} OFFSET ${skip}
+    `;
+
+    const countResult: any[] = await this.prisma.$queryRaw`
+      SELECT COUNT(*)::int as count
+      FROM "Retailer" R
+      WHERE ${whereClause}
+    `;
+
+    const total = countResult[0]?.count || 0;
+
+    // Transform flat results to nested structure
+    const transformedRetailers = retailers.map(r => ({
+      id: r.id,
+      name: r.name,
+      phone: r.phone,
+      regionId: r.regionId,
+      areaId: r.areaId,
+      distributorId: r.distributorId,
+      territoryId: r.territoryId,
+      salesRepId: r.salesRepId,
+      points: r.points,
+      routes: r.routes,
+      notes: r.notes,
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
+      region: { name: r.regionName },
+      area: { name: r.areaName },
+      distributor: { name: r.distributorName },
+      territory: r.territoryName ? { name: r.territoryName } : null,
+    }));
 
     const result = {
-      data: retailers,
+      data: transformedRetailers,
       meta: {
         total,
         page,
@@ -71,51 +117,92 @@ export class RetailersService {
   }
 
   async findOne(userId: number, id: string) {
-    const retailer = await this.prisma.retailer.findUnique({
-      where: { id: parseInt(id) },
-      include: {
-        region: { select: { name: true } },
-        area: { select: { name: true } },
-        distributor: { select: { name: true } },
-        territory: { select: { name: true } },
-        assignments: { select: { salesRepId: true } },
-      },
-    });
+    const retailerId = parseInt(id);
+    
+    const result: any[] = await this.prisma.$queryRaw`
+      SELECT 
+        R.id,
+        R.name,
+        R.phone,
+        R."regionId",
+        R."areaId", 
+        R."distributorId",
+        R."territoryId",
+        R."salesRepId",
+        R.points,
+        R.routes,
+        R.notes,
+        R."createdAt",
+        R."updatedAt",
+        Reg.name as "regionName",
+        A.name as "areaName",
+        D.name as "distributorName",
+        T.name as "territoryName"
+      FROM "Retailer" R
+      LEFT JOIN "Region" Reg ON R."regionId" = Reg.id
+      LEFT JOIN "Area" A ON R."areaId" = A.id
+      LEFT JOIN "Distributor" D ON R."distributorId" = D.id
+      LEFT JOIN "Territory" T ON R."territoryId" = T.id
+      WHERE R.id = ${retailerId}
+    `;
 
-    if (!retailer) {
+    if (!result || result.length === 0) {
       throw new NotFoundException('Retailer not found');
     }
 
-    const isAssigned = retailer.assignments.some((a) => a.salesRepId === userId);
-    if (!isAssigned) {
+    const r = result[0];
+
+    if (r.salesRepId !== userId) {
       throw new ForbiddenException('Not authorized to view this retailer');
     }
 
-    return retailer;
+    return {
+      id: r.id,
+      name: r.name,
+      phone: r.phone,
+      regionId: r.regionId,
+      areaId: r.areaId,
+      distributorId: r.distributorId,
+      territoryId: r.territoryId,
+      salesRepId: r.salesRepId,
+      points: r.points,
+      routes: r.routes,
+      notes: r.notes,
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
+      region: { name: r.regionName },
+      area: { name: r.areaName },
+      distributor: { name: r.distributorName },
+      territory: r.territoryName ? { name: r.territoryName } : null,
+    };
   }
 
   async update(userId: number, id: string, updateDto: UpdateRetailerDto) {
-    const retailer = await this.prisma.retailer.findUnique({
-      where: { id: parseInt(id) },
-      include: { assignments: { select: { salesRepId: true } } },
+    const retailerId = parseInt(id);
+    
+    // Check authorization first - simple query
+    const retailer: any = await this.prisma.retailer.findUnique({
+      where: { id: retailerId },
+      select: { id: true, salesRepId: true },
     });
 
     if (!retailer) {
       throw new NotFoundException('Retailer not found');
     }
 
-    const isAssigned = retailer.assignments.some((a) => a.salesRepId === userId);
-    if (!isAssigned) {
+    if (retailer.salesRepId !== userId) {
       throw new ForbiddenException('Not authorized to update this retailer');
     }
 
-    const updated = await this.prisma.retailer.update({
-      where: { id: parseInt(id) },
+    // Simple update - use Prisma ORM
+    await this.prisma.retailer.update({
+      where: { id: retailerId },
       data: updateDto,
     });
 
     await this.redis.delPattern(`retailers:sr:${userId}:*`);
-    return updated;
+    
+    return this.findOne(userId, id);
   }
 }
 

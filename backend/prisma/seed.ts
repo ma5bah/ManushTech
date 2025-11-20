@@ -5,7 +5,7 @@ const prisma = new PrismaClient();
 
 async function main() {
   console.log('Clearing existing data...');
-  await prisma.salesRepRetailer.deleteMany({});
+
   await prisma.retailer.deleteMany({});
   await prisma.user.deleteMany({});
   await prisma.territory.deleteMany({});
@@ -130,12 +130,13 @@ async function main() {
     if (!salesRep) continue;
     const retailersToAssign = allRetailers.slice(retailerIndex, retailerIndex + 40);
     if (retailersToAssign.length > 0) {
-      await prisma.salesRepRetailer.createMany({
-        data: retailersToAssign.map(r => ({
+      await prisma.retailer.updateMany({
+        where: {
+          id: { in: retailersToAssign.map(r => r.id) },
+        },
+        data: {
           salesRepId: salesRep.id,
-          retailerId: r.id,
-        })),
-        skipDuplicates: true,
+        },
       });
       retailerIndex += 40;
     }

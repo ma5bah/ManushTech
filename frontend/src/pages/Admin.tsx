@@ -70,7 +70,7 @@ export default function Admin() {
           <TabsTrigger value="distributors">Distributors</TabsTrigger>
           <TabsTrigger value="territories">Territories</TabsTrigger>
           <TabsTrigger value="retailers">Retailers</TabsTrigger>
-          <TabsTrigger value="salesReps">Sales Reps</TabsTrigger>
+          <TabsTrigger value="salesReps">Users</TabsTrigger>
           <TabsTrigger value="assignments">Bulk Assign</TabsTrigger>
         </TabsList>
 

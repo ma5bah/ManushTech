@@ -41,7 +41,7 @@ export function BulkAssignTab() {
       setRetailers(retailersData.map(r => ({ 
         id: r.id,
         name: r.name,
-        salesRepId: r.assignments && r.assignments.length > 0 ? r.assignments[0].salesRep.id : null
+        salesRepId: r.salesRep?.id || null
       })));
       setSalesReps(salesRepsData);
     } catch (error: any) {

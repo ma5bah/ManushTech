@@ -168,8 +168,8 @@ export interface Retailer {
   points: number;
   routes: string;
   notes: string;
-  salesRepId?: number; // For assignment UI
-  assignments?: { salesRep: { id: number; name: string } }[];
+  salesRepId?: number | null;
+  salesRep?: { id: number; name: string } | null;
 }
 
 export interface RetailerListResponse {

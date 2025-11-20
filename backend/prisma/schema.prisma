@@ -86,12 +86,15 @@ model Retailer {
   notes         String             @default("")
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
-  assignments   SalesRepRetailer[]
+  
+  salesRepId    Int?
+  salesRep      SalesRep?          @relation(fields: [salesRepId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   @@index([regionId])
   @@index([areaId])
   @@index([distributorId])
   @@index([territoryId])
+  @@index([salesRepId])
   
   // Added indexes for the 'Search' feature (name, phone)
   @@index([name])
@@ -103,21 +106,9 @@ model SalesRep {
   name         String
   createdAt    DateTime           @default(now())
   updatedAt    DateTime           @updatedAt
-  assignments  SalesRepRetailer[]
+  retailers    Retailer[]
   user         User               @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   userId       Int                @unique
 }
 
-model SalesRepRetailer {
-  salesRepId Int
-  retailerId Int
-  assignedAt DateTime @default(now())
 
-  salesRep SalesRep @relation(fields: [salesRepId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  retailer Retailer @relation(fields: [retailerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-
-  @@id([salesRepId, retailerId])
-
-  @@index([retailerId])
-  @@index([salesRepId])
-}

@@ -17,7 +17,7 @@ import {
   DistributorQueryDto,
   TerritoryQueryDto,
 } from '../retailers/dto/retailer-query.dto';
-import { User, Role } from '@prisma/client';
+import { User, Role, Prisma } from '@prisma/client';
 
 @Injectable()
 export class AdminService {
@@ -239,18 +239,36 @@ export class AdminService {
     const { salesRepId, retailerIds, action } = dto;
 
     if (action === 'assign') {
-      const data = retailerIds.map((retailerId) => ({ salesRepId, retailerId }));
-      await this.prisma.salesRepRetailer.createMany({
-        data,
-        skipDuplicates: true,
-      });
+      // Check if any retailer is already assigned using queryRaw for JOIN
+      const alreadyAssigned: any[] = await this.prisma.$queryRaw`
+        SELECT R.id, R.name, SR.id as "salesRep_id", SR.name as "salesRep_name"
+        FROM "Retailer" R
+        LEFT JOIN "SalesRep" SR ON R."salesRepId" = SR.id
+        WHERE R.id = ANY(${retailerIds}) AND R."salesRepId" IS NOT NULL
+      `;
+
+      if (alreadyAssigned.length > 0) {
+        const conflicts = alreadyAssigned.map(
+          (r) => `Retailer "${r.name}" (ID: ${r.id}) is already assigned to ${r.salesRep_name}`,
+        );
+        throw new BadRequestException(
+          `Cannot assign retailers. The following conflicts exist:\n${conflicts.join('\n')}`,
+        );
+      }
+
+      // Simple batch update - use Prisma ORM
+      await this.prisma.$executeRaw`
+        UPDATE "Retailer"
+        SET "salesRepId" = ${salesRepId}
+        WHERE id = ANY(${retailerIds})
+      `;
     } else {
-      await this.prisma.salesRepRetailer.deleteMany({
-        where: {
-          salesRepId,
-          retailerId: { in: retailerIds },
-        },
-      });
+      // Simple batch update - use Prisma ORM
+      await this.prisma.$executeRaw`
+        UPDATE "Retailer"
+        SET "salesRepId" = NULL
+        WHERE id = ANY(${retailerIds}) AND "salesRepId" = ${salesRepId}
+      `;
     }
 
     await this.redis.delPattern(`retailers:sr:${salesRepId}:*`);
@@ -265,7 +283,7 @@ export class AdminService {
       skip_empty_lines: true,
       trim: true,
     });
-
+    // console.log('Parsed records:', records);
     if (!records.length) {
       throw new BadRequestException('CSV file is empty');
     }
@@ -335,14 +353,38 @@ export class AdminService {
         return { imported: 0, skipped: records.length, message: 'All retailers were skipped due to missing data.' };
     }
 
-    const result = await this.prisma.retailer.createMany({
-      data: newRetailers,
+    // Filter out duplicates by phone number to prevent errors
+    const phones = newRetailers.map(r => r.phone).filter(p => p !== null) as string[];
+    let existingPhones: string[] = [];
+    
+    if (phones.length > 0) {
+      const existing = await this.prisma.retailer.findMany({
+        where: { phone: { in: phones } },
+        select: { phone: true },
+      });
+      existingPhones = existing.map(r => r.phone!).filter(p => p !== null);
+    }
+
+    const existingPhoneSet = new Set(existingPhones);
+    const uniqueRetailers = newRetailers.filter(r => !r.phone || !existingPhoneSet.has(r.phone));
+    
+    if (uniqueRetailers.length === 0) {
+       return { 
+         imported: 0, 
+         skipped: records.length, 
+         message: 'All retailers were skipped (duplicates or invalid data).' 
+       };
+    }
+
+    // Use Prisma createMany for safe batch insert
+    await this.prisma.retailer.createMany({
+      data: uniqueRetailers,
       skipDuplicates: true,
     });
 
     return {
-      imported: result.count,
-      skipped: records.length - result.count,
+      imported: uniqueRetailers.length,
+      skipped: records.length - uniqueRetailers.length,
     };
   }
 
@@ -350,46 +392,99 @@ export class AdminService {
   async getRetailers(query: RetailerQueryDto) {
     const { page = 1, limit = 20, search, regionId, areaId, distributorId, territoryId } = query;
     const skip = (page - 1) * limit;
-    const where: any = {};
 
+    // Build dynamic WHERE conditions using Prisma.sql
+    const conditions: Prisma.Sql[] = [];
+    
     if (search) {
-      where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { phone: { contains: search, mode: 'insensitive' } },
-      ];
+      const searchPattern = `%${search}%`;
+      conditions.push(Prisma.sql`(R.name ILIKE ${searchPattern} OR R.phone ILIKE ${searchPattern})`);
     }
     if (regionId) {
-      where.regionId = regionId;
+      conditions.push(Prisma.sql`R."regionId" = ${regionId}`);
     }
     if (areaId) {
-      where.areaId = areaId;
+      conditions.push(Prisma.sql`R."areaId" = ${areaId}`);
     }
     if (distributorId) {
-      where.distributorId = distributorId;
+      conditions.push(Prisma.sql`R."distributorId" = ${distributorId}`);
     }
     if (territoryId) {
-      where.territoryId = territoryId;
+      conditions.push(Prisma.sql`R."territoryId" = ${territoryId}`);
     }
 
-    const [retailers, total] = await Promise.all([
-      this.prisma.retailer.findMany({
-        where,
-        skip,
-        take: limit,
-        include: {
-          region: { select: { id: true, name: true } },
-          area: { select: { id: true, name: true } },
-          distributor: { select: { id: true, name: true } },
-          territory: { select: { id: true, name: true } },
-          assignments: { include: { salesRep: { select: { id: true, name: true } } } },
-        },
-        orderBy: { name: 'asc' },
-      }),
-      this.prisma.retailer.count({ where }),
-    ]);
+    const whereClause = conditions.length > 0 
+      ? Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`
+      : Prisma.sql``;
+
+    const retailers: any[] = await this.prisma.$queryRaw`
+      SELECT 
+        R.id,
+        R.name,
+        R.phone,
+        R."regionId",
+        R."areaId", 
+        R."distributorId",
+        R."territoryId",
+        R."salesRepId",
+        R.points,
+        R.routes,
+        R.notes,
+        R."createdAt",
+        R."updatedAt",
+        Reg.id as "region_id",
+        Reg.name as "region_name",
+        A.id as "area_id",
+        A.name as "area_name",
+        D.id as "distributor_id",
+        D.name as "distributor_name",
+        T.id as "territory_id",
+        T.name as "territory_name",
+        SR.id as "salesRep_id",
+        SR.name as "salesRep_name"
+      FROM "Retailer" R
+      LEFT JOIN "Region" Reg ON R."regionId" = Reg.id
+      LEFT JOIN "Area" A ON R."areaId" = A.id
+      LEFT JOIN "Distributor" D ON R."distributorId" = D.id
+      LEFT JOIN "Territory" T ON R."territoryId" = T.id
+      LEFT JOIN "SalesRep" SR ON R."salesRepId" = SR.id
+      ${whereClause}
+      ORDER BY R.name ASC
+      LIMIT ${limit} OFFSET ${skip}
+    `;
+
+    const countResult: any[] = await this.prisma.$queryRaw`
+      SELECT COUNT(*)::int as count
+      FROM "Retailer" R
+      ${whereClause}
+    `;
+
+    const total = countResult[0]?.count || 0;
+
+    // Transform flat results to nested structure
+    const transformedRetailers = retailers.map(r => ({
+      id: r.id,
+      name: r.name,
+      phone: r.phone,
+      regionId: r.regionId,
+      areaId: r.areaId,
+      distributorId: r.distributorId,
+      territoryId: r.territoryId,
+      salesRepId: r.salesRepId,
+      points: r.points,
+      routes: r.routes,
+      notes: r.notes,
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
+      region: { id: r.region_id, name: r.region_name },
+      area: { id: r.area_id, name: r.area_name },
+      distributor: { id: r.distributor_id, name: r.distributor_name },
+      territory: r.territory_id ? { id: r.territory_id, name: r.territory_name } : null,
+      salesRep: r.salesRep_id ? { id: r.salesRep_id, name: r.salesRep_name } : null,
+    }));
 
     return {
-      data: retailers,
+      data: transformedRetailers,
       meta: {
         total,
         page,
@@ -400,26 +495,70 @@ export class AdminService {
   }
 
   async getRetailer(id: number) {
-    const retailer = await this.prisma.retailer.findUnique({
-      where: { id },
-      include: {
-        region: { select: { id: true, name: true } },
-        area: { select: { id: true, name: true } },
-        distributor: { select: { id: true, name: true } },
-        territory: { select: { id: true, name: true } },
-        assignments: { include: { salesRep: { select: { id: true, name: true } } } },
-      },
-    });
+    const result: any[] = await this.prisma.$queryRaw`
+      SELECT 
+        R.id,
+        R.name,
+        R.phone,
+        R."regionId",
+        R."areaId", 
+        R."distributorId",
+        R."territoryId",
+        R."salesRepId",
+        R.points,
+        R.routes,
+        R.notes,
+        R."createdAt",
+        R."updatedAt",
+        Reg.id as "region_id",
+        Reg.name as "region_name",
+        A.id as "area_id",
+        A.name as "area_name",
+        D.id as "distributor_id",
+        D.name as "distributor_name",
+        T.id as "territory_id",
+        T.name as "territory_name",
+        SR.id as "salesRep_id",
+        SR.name as "salesRep_name"
+      FROM "Retailer" R
+      LEFT JOIN "Region" Reg ON R."regionId" = Reg.id
+      LEFT JOIN "Area" A ON R."areaId" = A.id
+      LEFT JOIN "Distributor" D ON R."distributorId" = D.id
+      LEFT JOIN "Territory" T ON R."territoryId" = T.id
+      LEFT JOIN "SalesRep" SR ON R."salesRepId" = SR.id
+      WHERE R.id = ${id}
+    `;
 
-    if (!retailer) {
+    if (!result || result.length === 0) {
       throw new NotFoundException(`Retailer with ID ${id} not found`);
     }
 
-    return retailer;
+    const r = result[0];
+    return {
+      id: r.id,
+      name: r.name,
+      phone: r.phone,
+      regionId: r.regionId,
+      areaId: r.areaId,
+      distributorId: r.distributorId,
+      territoryId: r.territoryId,
+      salesRepId: r.salesRepId,
+      points: r.points,
+      routes: r.routes,
+      notes: r.notes,
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
+      region: { id: r.region_id, name: r.region_name },
+      area: { id: r.area_id, name: r.area_name },
+      distributor: { id: r.distributor_id, name: r.distributor_name },
+      territory: r.territory_id ? { id: r.territory_id, name: r.territory_name } : null,
+      salesRep: r.salesRep_id ? { id: r.salesRep_id, name: r.salesRep_name } : null,
+    };
   }
 
   async createRetailer(dto: CreateRetailerDto) {
-    return this.prisma.retailer.create({
+    // Simple create - use Prisma ORM (types will work after migration)
+    const created: any = await this.prisma.retailer.create({
       data: {
         name: dto.name,
         phone: dto.phone || null,
@@ -431,35 +570,24 @@ export class AdminService {
         routes: dto.routes || '',
         notes: dto.notes || '',
       },
-      include: {
-        region: { select: { id: true, name: true } },
-        area: { select: { id: true, name: true } },
-        distributor: { select: { id: true, name: true } },
-        territory: { select: { id: true, name: true } },
-        assignments: { include: { salesRep: { select: { id: true, name: true } } } },
-      },
     });
+
+    return this.getRetailer(created.id);
   }
 
   async updateRetailer(id: number, dto: UpdateRetailerAdminDto) {
-    const updated = await this.prisma.retailer.update({
+    // Simple update - use Prisma ORM (types will work after migration)
+    const updated: any = await this.prisma.retailer.update({
       where: { id },
       data: dto,
-      include: {
-        region: { select: { id: true, name: true } },
-        area: { select: { id: true, name: true } },
-        distributor: { select: { id: true, name: true } },
-        territory: { select: { id: true, name: true } },
-        assignments: { include: { salesRep: { select: { id: true, name: true } } } },
-      },
     });
 
-    // Invalidate cache for all assigned sales reps
-    for (const assignment of updated.assignments) {
-      await this.redis.delPattern(`retailers:sr:${assignment.salesRep.id}:*`);
+    // Invalidate cache for assigned sales rep
+    if (updated.salesRepId) {
+      await this.redis.delPattern(`retailers:sr:${updated.salesRepId}:*`);
     }
 
-    return updated;
+    return this.getRetailer(id);
   }
 
   async deleteRetailer(id: number) {

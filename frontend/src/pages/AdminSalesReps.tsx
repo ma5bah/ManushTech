@@ -124,7 +124,7 @@ export function SalesRepsTab() {
     <Card>
       <CardHeader>
         <div className="flex justify-between items-center">
-          <CardTitle>Sales Reps</CardTitle>
+          <CardTitle>Users</CardTitle>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               <Button onClick={() => { setEditing(null); resetForm(); }}>Add User</Button>

@@ -40,7 +40,7 @@ export class AppService implements OnModuleInit {
       }
 
       await this.userService.createUser({
-        username: 'admin',
+        username: 'superadmin',
         phone: '0000000000',
         email: adminEmail,
         password: adminPassword,
